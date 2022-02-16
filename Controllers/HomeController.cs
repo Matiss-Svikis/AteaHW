@@ -19,7 +19,7 @@ namespace MatissHW.Controllers
             TimeSpan t= DateTime.UtcNow -new DateTime(1970, 1, 1);
             List<WeatherReport> objCategoryList = _db.WeatherReport.Where(x=>x.Last_updated_epoch>=(int)t.TotalSeconds- 86400).ToList(); //take last 24 hours
             return View(objCategoryList);
-            //return View();
+
         }
 
         public IActionResult Privacy()
