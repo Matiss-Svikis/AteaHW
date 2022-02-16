@@ -1,4 +1,5 @@
 ﻿## How to setup
+- install .net6 sdk and vs2022
 - Make sure you have sql server running
 - paste your sql connection string into appsettings.json
 - open package manager console and run
