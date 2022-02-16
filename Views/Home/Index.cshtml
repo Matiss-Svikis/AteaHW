@@ -1,0 +1,197 @@
+﻿@model List<WeatherReport>
+@inject IJsonHelper Json;
+@{
+    ViewData["Title"] = "Weather report";
+}
+
+ <div class="text-center">
+    <h2> Temperature chart</h2>
+    <canvas id="tempChart" style="width:100%;max-width:1200px"></canvas>
+    <button onclick="tempTrendForCountry()" class="btn btn-primary m-4">Last 2 hour temperature trend for Country</button>
+    <h2>Wind Speed Chart</h2>
+    <canvas id="windSpeedChart" style="width:100%;max-width:1200px" class=""></canvas>
+    <button onclick="windSpeedTrendForCountry()" class="btn btn-primary">Last 2 hour wind speed trend for Country</button> 
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-trendline"></script>
+ <script>
+
+let weatherReport = @Json.Serialize(Model);
+let dynamicColors = function () {
+  let r = Math.floor(Math.random() * 255);
+  let g = Math.floor(Math.random() * 255);
+  let b = Math.floor(Math.random() * 255);
+  return `rgb(${r},${g},${b})`;
+};
+
+const reportsByCountry = weatherReport.reduce((prevVal, curVal) => {
+  return { ...(prevVal || {}), [curVal.country]: [...(prevVal[curVal.country] || []), { ...curVal }] };
+}, {});
+const countryNames = Object.keys(reportsByCountry);
+const tempDataSet = countryNames.map((cityName) => {
+  const allTempData = reportsByCountry[cityName].map((report) => {
+    return { x: report.last_updated_epoch, y: report.temp_c, city: report.name };
+  });
+
+  const tempData = allTempData.filter((value, index, self) => {
+    //removes duplicates
+    return (
+      index ===
+      self.findIndex((t) => {
+        return t.x === value.x && t.y === value.y;
+      })
+    );
+  });
+  return {
+    label: cityName,
+    data: tempData,
+    borderColor: dynamicColors(),
+    fill: false,
+  };
+});
+
+const windSpeedDataSet = countryNames.map((cityName) => {
+  const allWindData = reportsByCountry[cityName].map((report) => {
+    return { x: report.last_updated_epoch, y: report.wind_kph, city: report.name };
+  });
+
+  const windData = allWindData.filter((value, index, self) => {
+    //removes duplicates
+    return (
+      index ===
+      self.findIndex((t) => {
+        return t.x === value.x && t.y === value.y;
+      })
+    );
+  });
+  return {
+    label: cityName,
+    data: windData,
+    borderColor: dynamicColors(),
+    fill: false,
+  };
+});
+
+const temperatureChart = new Chart("tempChart", {
+  type: "scatter",
+  data: {
+    datasets: tempDataSet,
+  },
+  options: {
+    legend: { display: true },
+    scales: {
+      x: {
+        ticks: {
+          callback: function (value, index, values) {
+            let reportDate = new Date(value * 1000);
+            const reportsDateTime = reportDate.toLocaleString("lv", { hour12: false }).split(" ")[1];
+            const splitTime = reportsDateTime.split(":");
+            return `${splitTime[0]}:${splitTime[1]}`; //gets only the HH:MM part of the date
+          },
+        },
+      },
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: function (tooltipItem, data) {
+            return `${tooltipItem.raw.city}, ${tooltipItem.parsed.y} °C`;
+          },
+        },
+      },
+    },
+  },
+});
+
+const windSpeedChart = new Chart("windSpeedChart", {
+  type: "scatter",
+  data: {
+    datasets: windSpeedDataSet,
+  },
+  options: {
+    legend: { display: true },
+    scales: {
+      x: {
+        ticks: {
+          callback: function (value, index, values) {
+            let reportDate = new Date(value * 1000);
+            const reportsDateTime = reportDate.toLocaleString("lv", { hour12: false }).split(" ")[1];
+            const splitTime = reportsDateTime.split(":");
+            return `${splitTime[0]}:${splitTime[1]}`; //gets only the HH:MM part of the date
+          },
+        },
+      },
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: function (tooltipItem, data) {
+            return `${tooltipItem.raw.city}, ${tooltipItem.parsed.y} km/h`;
+          },
+        },
+      },
+    },
+  },
+});
+
+let tempTrendIsOn = 0;
+let noTrendTempDataSet = tempDataSet;
+function tempTrendForCountry() {
+  const newTempDataSet = tempDataSet.map((countryData) => {
+    const last2hourData = countryData.data.filter((item) => {
+      //last 2 hours
+      return Math.floor(Date.now() / 1000 - 7200) <= item.x;
+    });
+    let copyOfCountryData = JSON.parse(JSON.stringify(countryData));
+    copyOfCountryData.data = last2hourData;
+    return {
+      ...copyOfCountryData,
+      trendlineLinear: {
+        style: dynamicColors(),
+        lineStyle: "solid",
+        width: 2,
+        projection: false,
+      },
+    };
+  });
+  if (!!tempTrendIsOn) {
+    tempTrendIsOn = 0;
+    temperatureChart.data.datasets = noTrendTempDataSet;
+  } else {
+    tempTrendIsOn = 1;
+    temperatureChart.data.datasets = newTempDataSet;
+  }
+  temperatureChart.update();
+}
+
+let windTrendIsOn = 0;
+let noTrendWindDataSet = windSpeedDataSet;
+function windSpeedTrendForCountry() {
+  const newWindDataSet = windSpeedDataSet.map((countryData) => {
+    const last2hourData = countryData.data.filter((item) => {
+      //last 2 hours
+      return Math.floor(Date.now() / 1000 - 7200) <= item.x;
+    });
+    let copyOfCountryData = JSON.parse(JSON.stringify(countryData));
+    copyOfCountryData.data = last2hourData;
+    return {
+      ...copyOfCountryData,
+      trendlineLinear: {
+        style: dynamicColors(),
+        lineStyle: "solid",
+        width: 2,
+        projection: false,
+      },
+    };
+  });
+  if (!!windTrendIsOn) {
+    windTrendIsOn = 0;
+    windSpeedChart.data.datasets = noTrendWindDataSet;
+  } else {
+    windTrendIsOn = 1;
+    windSpeedChart.data.datasets = newWindDataSet;
+  }
+  windSpeedChart.update();
+}
+
+</script>
